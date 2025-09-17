@@ -144,7 +144,7 @@ def status_text(state: State) -> str:
     atualizado = fmt_brazil(state.updated_at_iso)
     na_secretaria = state.current_holder == SECRETARIA
     if na_secretaria:
-        return (f"🔑 **Chave na Secretaria**
+        return f"🔑 **Chave na Secretaria**\n**Atualizado:** {atualizado}"
 "
                 f"**Atualizado:** {atualizado}")
     else:
