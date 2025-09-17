@@ -15,14 +15,18 @@ from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
+from aiogram.exceptions import TelegramBadRequest
 from dotenv import load_dotenv
+
+# --- mini servidor HTTP para "abrir porta" no Render ---
+from aiohttp import web
 
 # ==========================
 # Configuração e constantes
 # ==========================
 EMPREGADOS: List[str] = [
     "Secretaria",
-    "Lucas", "André", "Pamela", "Maria Cecília", "Lívia", "Loreena",
+    "Lucas", "André", "Pâmela", "Maria Cecília", "Lívia", "Loreena",
     "Duda", "Maria Fernanda", "Jéssica", "Manoela", "Luara", "Enzo",
     "Maria Gabriela", "Guilherme",
 ]
@@ -103,7 +107,7 @@ def build_transfer_keyboard(exclude: Optional[str] = None) -> InlineKeyboardMark
     return kb.as_markup()
 
 def status_text(state: State) -> str:
-    """Texto da mensagem fixa. Alterna entre 'na Secretaria' e 'com NOME'."""
+    """Mensagem fixada: alterna entre 'na Secretaria' e 'com NOME'."""
     atualizado = fmt_brazil(state.updated_at_iso)
     if state.current_holder == SECRETARIA:
         return (
@@ -117,7 +121,7 @@ def status_text(state: State) -> str:
         )
 
 # =====================
-# Inicialização do Bot
+# Bot & helpers
 # =====================
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -128,6 +132,15 @@ if not BOT_TOKEN:
 bot = Bot(BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN))
 dp = Dispatcher()
 state = State.load()
+
+async def safe_answer(cb: CallbackQuery, text: str = ""):
+    """Responde callback imediatamente e ignora erro de expiração do Telegram."""
+    try:
+        await cb.answer(text)
+    except TelegramBadRequest:
+        pass
+    except Exception:
+        pass
 
 # =====================
 # Comandos
@@ -147,7 +160,6 @@ async def cmd_setup(msg: Message):
 
     try:
         if state.pinned_message_id and state.chat_id == msg.chat.id:
-            # Já existe: apenas atualiza
             await bot.edit_message_text(
                 chat_id=state.chat_id,
                 message_id=state.pinned_message_id,
@@ -155,7 +167,6 @@ async def cmd_setup(msg: Message):
                 reply_markup=kb,
             )
         else:
-            # Cria e tenta fixar
             m = await msg.answer(text, reply_markup=kb)
             try:
                 await bot.pin_chat_message(msg.chat.id, m.message_id, disable_notification=True)
@@ -165,7 +176,6 @@ async def cmd_setup(msg: Message):
             state.chat_id = msg.chat.id
             state.save()
     except Exception:
-        # Caso a mensagem fixada anterior tenha sido apagada
         m = await msg.answer(text, reply_markup=kb)
         try:
             await bot.pin_chat_message(msg.chat.id, m.message_id, disable_notification=True)
@@ -207,27 +217,32 @@ async def cmd_reset(msg: Message):
 # =====================
 @dp.callback_query(F.data == "transferir")
 async def on_transferir(cb: CallbackQuery):
+    await safe_answer(cb, "Escolha para quem transferir.")
     atual = state.current_holder
     kb = build_transfer_keyboard(exclude=atual if atual != SECRETARIA else None)
-    await cb.message.edit_reply_markup(reply_markup=kb)
-    await cb.answer("Escolha para quem transferir.")
+    try:
+        await cb.message.edit_reply_markup(reply_markup=kb)
+    except Exception:
+        pass
 
 @dp.callback_query(F.data == "voltar")
 async def on_voltar(cb: CallbackQuery):
-    await cb.message.edit_reply_markup(reply_markup=build_main_keyboard())
-    await cb.answer()
+    await safe_answer(cb)
+    try:
+        await cb.message.edit_reply_markup(reply_markup=build_main_keyboard())
+    except Exception:
+        pass
 
 @dp.callback_query(F.data.startswith("definir::"))
 async def on_definir(cb: CallbackQuery):
+    await safe_answer(cb, "Atualizando…")
     novo = cb.data.split("::", 1)[1]
     anterior = state.current_holder
 
-    # Atualiza estado
     state.current_holder = novo
     state.updated_at_iso = utcnow_iso()
     state.save()
 
-    # Atualiza a MENSAGEM FIXA
     if state.chat_id and state.pinned_message_id:
         try:
             await bot.edit_message_text(
@@ -239,34 +254,53 @@ async def on_definir(cb: CallbackQuery):
         except Exception:
             pass
 
-    # Atualiza a mensagem do callback (por garantia)
     try:
         await cb.message.edit_text(status_text(state), reply_markup=build_main_keyboard())
     except Exception:
         pass
 
-    # Log
     log_event("transferir", anterior, novo, cb.from_user.id, cb.message.chat.id)
 
-    # Confirmação enxuta (se quiser remover, basta comentar estas 5 linhas)
     try:
+        resumo = status_text(state).splitlines()[0]
         if anterior != novo:
-            resumo = status_text(state).splitlines()[0]
             await cb.message.answer(f"✅ Status atualizado: {resumo}")
         else:
-            resumo = status_text(state).splitlines()[0]
             await cb.message.answer(f"ℹ️ Chave permanece: {resumo}")
     except Exception:
         pass
 
-    await cb.answer("Status atualizado.")
+# =====================
+# HTTP server (para Render Web Service)
+# =====================
+async def run_http_server():
+    app = web.Application()
+
+    async def root(_):
+        return web.Response(text="Bot da Chave — OK")
+
+    async def health(_):
+        return web.Response(text="ok")
+
+    app.router.add_get("/", root)
+    app.router.add_get("/health", health)
+    port = int(os.environ.get("PORT", "10000"))
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+    # mantém o server vivo
+    await asyncio.Event().wait()
 
 # ============
 # Entrypoint
 # ============
 async def main():
     print("Bot da Chave rodando…")
-    await dp.start_polling(bot, allowed_updates=["message", "callback_query"])
+    # roda bot + http em paralelo
+    poll_task = asyncio.create_task(dp.start_polling(bot, allowed_updates=["message", "callback_query"]))
+    http_task = asyncio.create_task(run_http_server())
+    await asyncio.gather(poll_task, http_task)
 
 if __name__ == "__main__":
     try:
