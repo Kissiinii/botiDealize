@@ -112,7 +112,7 @@ def status_text(state: State) -> str:
         )
     else:
         return (
-            f"**Chave com:** {state.current_holder} 🔑\n"
+            f"🔑 **Chave com:** {state.current_holder}\n"
             f"**Atualizado:** {atualizado}"
         )
 
