@@ -25,8 +25,8 @@ from aiohttp import web
 # Configuração e constantes
 # ==========================
 EMPREGADOS: List[str] = [
-    "Secretaria",
-    "Lucas", "André", "Pâmela", "Maria Cecília", "Lívia", "Loreena",
+    "Secretaria", "Serviços", 
+    "Lucas", "André", "Pamela", "Maria Cecília", "Lívia", "Loreena",
     "Duda", "Maria Fernanda", "Jéssica", "Manoela", "Luara", "Enzo",
     "Maria Gabriela", "Guilherme",
 ]
