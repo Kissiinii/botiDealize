@@ -28,7 +28,7 @@ EMPREGADOS: List[str] = [
     "Secretaria", "Serviços", 
     "Lucas", "André", "Pamela", "Maria Cecília", "Lívia", "Loreena",
     "Duda", "Maria Fernanda", "Jéssica", "Manoela", "Luara", "Enzo",
-    "Maria Gabriela", "Guilherme",
+    "Maria Gabriela", "Guilherme", "Ana Júlia", "Laura", "Renan", "Luiza", "Emanuelle", "Valentina", "Amanda"
 ]
 
 STATE_FILE = Path("state.json")
