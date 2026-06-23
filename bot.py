@@ -27,7 +27,7 @@ from aiohttp import web
 EMPREGADOS: List[str] = [
     "Secretaria", "Serviços", 
     "Lucas", "Pamela", "Maria Fernanda", "Jéssica", "Manoela", "Luara", "Enzo",
-    "Maria Gabriela", "Ana Júlia", "Laura", "Renan", "Luiza", "Emanuelle", "Valentina", "Amanda"
+    "Maria Gabriela", "Ana Júlia", "Laura", "Renan", "Luiza", "Emanuelle", "Valentina", "Amanda", "Allana", "Bruna", "Duda B.", "Duda M.", "Dudu", "Giovana B.", "Giovana M.", "Keli", "Lavínia", "Nicolas", "Pedro", "Tuany", "Valentina N.", "Valentine"
 ]
 
 STATE_FILE = Path("state.json")
